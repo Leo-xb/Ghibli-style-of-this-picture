@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>宫崎骏风格图片转换器 — AI 动画风格迁移</title>
+    <style>
+        :root {
+            --bg: #f7f3ea;
+            --card: #fffdf6;
+            --text: #3d3226;
+            --muted: #7a6e5d;
+            --accent: #528a6e;
+            --accent-hover: #43785c;
+            --gold: #c6a257;
+            --gold-hover: #b08d3e;
+            --border: #e5dccf;
+            --radius: 18px;
+            --radius-sm: 12px;
+            --shadow: 0 6px 32px rgba(60,38,18,0.07);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+            background: var(--bg);
+            background-image:
+                radial-gradient(ellipse 650px 320px at 12% 18%, rgba(198,162,87,0.07) 0%, transparent 100%),
+                radial-gradient(ellipse 520px 260px at 88% 78%, rgba(82,138,110,0.06) 0%, transparent 100%),
+                radial-gradient(ellipse 420px 210px at 48% 52%, rgba(155,195,215,0.04) 0%, transparent 100%);
+            min-height: 100vh;
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+            padding: 26px 16px 70px;
+        }
+
+        body::before {
+            content: '';
+            position: fixed; inset: 0; pointer-events: none; z-index: 0;
+            background:
+                radial-gradient(95px 48px at 7% 9%, rgba(255,255,255,0.52) 0%, transparent 100%),
+                radial-gradient(115px 42px at 15% 6%, rgba(255,255,255,0.42) 0%, transparent 100%),
+                radial-gradient(72px 36px at 5% 12%, rgba(255,255,255,0.48) 0%, transparent 100%),
+                radial-gradient(105px 52px at 79% 5%, rgba(255,255,255,0.48) 0%, transparent 100%),
+                radial-gradient(78px 36px at 85% 8%, rgba(255,255,255,0.52) 0%, transparent 100%),
+                radial-gradient(58px 30px at 74% 4%, rgba(255,255,255,0.38) 0%, transparent 100%),
+                radial-gradient(100px 44px at 47% 3%, rgba(255,255,255,0.28) 0%, transparent 100%);
+        }
+
+        .container { position: relative; z-index: 1; width: 100%; max-width: 840px; }
+
+        .header { text-align: center; padding: 42px 18px 22px; }
+        .header .icon {
+            font-size: 60px; display: block; margin-bottom: 10px;
+            animation: float 3.4s ease-in-out infinite;
+        }
+        @keyframes float {
+            0%,100% { transform: translateY(0); }
+            50%     { transform: translateY(-10px); }
+        }
+        .header h1 { font-size: 2rem; font-weight: 700; letter-spacing: 0.4px; margin-bottom: 5px; }
+        .header .sub { font-size: 0.94rem; color: var(--muted); }
+
+        .card {
+            background: var(--card); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 34px 36px;
+            margin-bottom: 22px; box-shadow: var(--shadow);
+            transition: box-shadow 0.3s;
+        }
+        .card:hover { box-shadow: 0 10px 46px rgba(60,38,18,0.10); }
+
+        /* Upload */
+        .upload-zone {
+            border: 2.5px dashed var(--border); border-radius: var(--radius);
+            padding: 50px 24px; text-align: center; cursor: pointer;
+            transition: all 0.28s ease; position: relative;
+            background: rgba(247,243,234,0.45);
+        }
+        .upload-zone:hover, .upload-zone.drag-over {
+            border-color: var(--accent);
+            background: rgba(82,138,110,0.05);
+            box-shadow: inset 0 0 0 5px rgba(82,138,110,0.04);
+        }
+        .upload-zone.filled { padding: 18px; border-style: solid; border-color: var(--accent); background: rgba(82,138,110,0.04); }
+        .upload-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+        .upload-icon { font-size: 48px; display: block; margin-bottom: 10px; }
+        .upload-title { font-size: 1.06rem; font-weight: 600; margin-bottom: 4px; }
+        .upload-sub { font-size: 0.84rem; color: var(--muted); }
+
+        /* API Setup */
+        .api-setup {
+            display: none; margin-top: 20px; padding: 20px 22px;
+            background: #fdfaf2; border: 1px solid #e8dfc8; border-radius: var(--radius-sm);
+        }
+        .api-setup.visible { display: block; }
+        .api-setup .row {
+            display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+        }
+        .api-setup label {
+            font-size: 0.84rem; font-weight: 650; color: var(--muted); white-space: nowrap;
+        }
+        .api-setup select, .api-setup input[type="text"], .api-setup input[type="password"] {
+            padding: 9px 13px; border: 1px solid var(--border); border-radius: 8px;
+            font-size: 0.88rem; font-family: inherit; background: #fff;
+            transition: border-color 0.2s;
+        }
+        .api-setup select:focus, .api-setup input:focus {
+            outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(82,138,110,0.08);
+        }
+        .api-setup select { flex: 0 0 auto; min-width: 200px; }
+        .api-setup input[type="text"], .api-setup input[type="password"] { flex: 1; min-width: 180px; }
+        .api-setup .hint {
+            font-size: 0.76rem; color: #b0a590; margin-top: 8px; line-height: 1.5;
+        }
+        .api-setup .hint a { color: var(--accent); }
+        .toggle-key {
+            padding: 9px 14px; font-size: 0.82rem; border: 1px solid var(--border);
+            border-radius: 8px; background: #fff; cursor: pointer; font-family: inherit;
+            transition: all 0.2s; white-space: nowrap;
+        }
+        .toggle-key:hover { background: #f5f0e6; }
+
+        /* Buttons */
+        .btn {
+            display: none; width: 100%; padding: 15px 22px; margin-top: 18px;
+            font-size: 1.06rem; font-weight: 650; border: none; border-radius: 12px;
+            cursor: pointer; font-family: inherit; letter-spacing: 0.4px;
+            transition: all 0.25s ease; text-align: center;
+        }
+        .btn.visible { display: block; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+        .btn-generate {
+            background: var(--accent); color: #fff;
+            box-shadow: 0 5px 18px rgba(82,138,110,0.28);
+        }
+        .btn-generate:hover:not(:disabled) {
+            background: var(--accent-hover); transform: translateY(-2px);
+            box-shadow: 0 8px 26px rgba(82,138,110,0.38);
+        }
+        .btn-download {
+            background: var(--gold); color: #fff;
+            box-shadow: 0 5px 18px rgba(198,162,87,0.28);
+        }
+        .btn-download:hover {
+            background: var(--gold-hover); transform: translateY(-2px);
+            box-shadow: 0 8px 26px rgba(198,162,87,0.38);
+        }
+
+        /* Status */
+        .status {
+            display: none; margin-top: 16px; padding: 14px 18px; border-radius: 10px;
+            font-size: 0.92rem; font-weight: 500; text-align: center;
+            animation: fadeSlide 0.3s ease;
+        }
+        @keyframes fadeSlide {
+            from { opacity: 0; transform: translateY(-5px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .status.visible { display: block; }
+        .status.busy   { background: #fef9e7; border: 1px solid #f9e79f; color: #7d6608; }
+        .status.ok     { background: #eafaf1; border: 1px solid #a9dfbf; color: #1e8449; }
+        .status.bad    { background: #fdedec; border: 1px solid #f5b7b1; color: #922b21; }
+        .spinner {
+            display: inline-block; width: 19px; height: 19px;
+            border: 2.5px solid rgba(125,102,8,0.25); border-top-color: #7d6608;
+            border-radius: 50%; animation: spin 0.75s linear infinite;
+            vertical-align: middle; margin-right: 9px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Preview */
+        .preview-grid {
+            display: none; margin-top: 24px; gap: 22px;
+        }
+        .preview-grid.visible {
+            display: grid; grid-template-columns: 1fr 1fr;
+        }
+        .preview-cell { text-align: center; }
+        .preview-cell .cell-label {
+            font-size: 0.8rem; font-weight: 650; color: var(--muted);
+            text-transform: uppercase; letter-spacing: 0.9px; margin-bottom: 8px;
+        }
+        .preview-cell img {
+            width: 100%; max-height: 380px; object-fit: contain;
+            border-radius: 12px; border: 1px solid var(--border);
+            background: #fafaf7; box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+        }
+        .img-ph {
+            width: 100%; min-height: 200px; display: flex; align-items: center;
+            justify-content: center; border-radius: 12px;
+            border: 1.5px dashed var(--border); background: #fafaf7;
+            font-size: 2.8rem; color: #d8d0c0;
+        }
+
+        /* Prompt editor */
+        .prompt-row {
+            display: none; margin-top: 10px;
+        }
+        .prompt-row.visible { display: block; }
+        .prompt-row textarea {
+            width: 100%; padding: 10px 13px; border: 1px solid var(--border);
+            border-radius: 8px; font-size: 0.86rem; font-family: inherit;
+            resize: vertical; min-height: 54px; background: #fff;
+            transition: border-color 0.2s;
+        }
+        .prompt-row textarea:focus {
+            outline: none; border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(82,138,110,0.08);
+        }
+
+        /* Info */
+        .info-card {
+            background: var(--card); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 28px 34px; box-shadow: var(--shadow);
+        }
+        .info-card h3 { font-size: 1.08rem; margin-bottom: 10px; }
+        .info-card p { font-size: 0.88rem; line-height: 1.7; color: var(--muted); margin-bottom: 6px; }
+        .info-card .badges { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+        .badge {
+            padding: 5px 14px; background: rgba(82,138,110,0.07); color: var(--accent);
+            border-radius: 20px; font-size: 0.8rem; font-weight: 550;
+            border: 1px solid rgba(82,138,110,0.14);
+        }
+        .info-card hr { border: none; border-top: 1px solid var(--border); margin: 18px 0; }
+        .info-card .note { font-size: 0.78rem; color: #b0a590; font-style: italic; }
+
+        @media (max-width: 620px) {
+            .card { padding: 22px; }
+            .header h1 { font-size: 1.4rem; }
+            .preview-grid.visible { grid-template-columns: 1fr; }
+            .api-setup .row { flex-direction: column; }
+            .api-setup select, .api-setup input { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <!-- ═══ Header ═══ -->
+    <header class="header">
+        <span class="icon">🏰</span>
+        <h1>宫崎骏风格图片转换器</h1>
+        <p class="sub">用中国大模型 AI 将照片变成吉卜力动画画面 ✨</p>
+    </header>
+
+    <!-- ═══ Main Card ═══ -->
+    <div class="card">
+
+        <!-- Upload -->
+        <div class="upload-zone" id="uploadZone">
+            <span class="upload-icon">🖼️</span>
+            <p class="upload-title">点击上传 或 拖拽图片到此处</p>
+            <p class="upload-sub">支持 JPG / PNG / WebP · 文件不超过 10 MB</p>
+            <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp">
+        </div>
+
+        <!-- API Setup -->
+        <div class="api-setup" id="apiSetup">
+            <div class="row">
+                <label for="backendSelect">🤖 AI 平台</label>
+                <select id="backendSelect">
+                    <option value="dashscope">阿里云百炼 — 通义万相（推荐✨）</option>
+                    <option value="siliconflow">硅基流动 SiliconFlow</option>
+                    <option value="zhipu">智谱 AI — CogView</option>
+                </select>
+            </div>
+            <div class="row" style="margin-top:10px;">
+                <label for="apiKey">🔑 API Key</label>
+                <input type="password" id="apiKey" placeholder="粘贴你的 API Key…">
+                <button class="toggle-key" id="toggleKeyBtn" type="button">👁 显示</button>
+            </div>
+            <!-- Prompt editor (for SiliconFlow / text-to-image with reference) -->
+            <div class="prompt-row" id="promptRow">
+                <label style="font-size:0.82rem;font-weight:600;color:var(--muted);display:block;margin-bottom:4px;">
+                    📝 风格描述（可修改）
+                </label>
+                <textarea id="promptInput"></textarea>
+            </div>
+            <p class="hint" id="apiHint"></p>
+        </div>
+
+        <!-- Buttons -->
+        <button class="btn btn-generate" id="btnGenerate">✨ 生成宫崎骏风格</button>
+        <button class="btn btn-download" id="btnDownload">💾 下载生成图片</button>
+
+        <!-- Status -->
+        <div class="status" id="status"></div>
+
+        <!-- Preview -->
+        <div class="preview-grid" id="previewGrid">
+            <div class="preview-cell">
+                <p class="cell-label">📷 原图</p>
+                <img id="imgOrig" alt="原图" style="display:none">
+                <div class="img-ph" id="phOrig">🏞️</div>
+            </div>
+            <div class="preview-cell">
+                <p class="cell-label">🎬 宫崎骏风格</p>
+                <img id="imgResult" alt="生成结果" style="display:none">
+                <div class="img-ph" id="phResult">🎨</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ Info Card ═══ -->
+    <div class="info-card">
+        <h3>📖 关于这个工具</h3>
+        <p>
+            本工具调用<strong>中国 AI 大模型平台</strong>的图像生成能力，将真实照片重绘为
+            <strong>宫崎骏 / 吉卜力动画风格</strong>。AI 会根据风格描述重新绘制整张画面，
+            使之呈现手绘动画的温暖质感。
+        </p>
+        <p style="font-weight:600;">API Key 已配置：</p>
+        <p>
+            ✅ <strong>阿里云百炼（通义万相）</strong> — API Key 已内置，开箱即用，无需额外配置。
+        </p>
+        <p style="font-weight:600; margin-top:8px;">其他可选平台（需自行获取 Key）：</p>
+        <p>
+            <strong>硅基流动</strong>：<a href="https://cloud.siliconflow.cn/account/ak" target="_blank" rel="noopener">cloud.siliconflow.cn</a>，手机号注册送额度。
+            &nbsp;|&nbsp;
+            <strong>智谱 AI</strong>：<a href="https://open.bigmodel.cn/" target="_blank" rel="noopener">open.bigmodel.cn</a>，注册后创建 Key。
+        </p>
+        <p style="font-weight:600; margin-top:8px;">支持格式：</p>
+        <div class="badges">
+            <span class="badge">JPEG / JPG</span>
+            <span class="badge">PNG</span>
+            <span class="badge">WebP</span>
+        </div>
+        <hr>
+        <p class="note">
+            💡 提示：图片会上传到对应 AI 服务商服务器进行推理。请勿上传隐私图片。
+            推荐使用风景、街拍、宠物照片以获得最佳效果。所有平台均为国内可直接访问。
+        </p>
+    </div>
+
+</div>
+
+<script>
+(function(){
+    // ── DOM ──────────────────────────────────────
+    const uploadZone   = document.getElementById('uploadZone');
+    const fileInput    = document.getElementById('fileInput');
+    const apiSetup     = document.getElementById('apiSetup');
+    const backendSelect= document.getElementById('backendSelect');
+    const apiKeyInput  = document.getElementById('apiKey');
+    const toggleKeyBtn = document.getElementById('toggleKeyBtn');
+    const promptRow    = document.getElementById('promptRow');
+    const promptInput  = document.getElementById('promptInput');
+    const apiHint      = document.getElementById('apiHint');
+    const btnGenerate  = document.getElementById('btnGenerate');
+    const btnDownload  = document.getElementById('btnDownload');
+    const statusDiv    = document.getElementById('status');
+    const previewGrid  = document.getElementById('previewGrid');
+    const imgOrig      = document.getElementById('imgOrig');
+    const imgResult    = document.getElementById('imgResult');
+    const phOrig       = document.getElementById('phOrig');
+    const phResult     = document.getElementById('phResult');
+
+    // ── Proxy detection ─────────────────────────
+    const IS_FILE = location.protocol === 'file:';
+
+    // If opened as file://, warn user to use a server
+    if (IS_FILE) {
+        document.addEventListener('DOMContentLoaded', () => {
+            setStatus('bad',
+                '⚠️ 请勿直接用 file:// 打开此文件。<br><br>'
+                + '<b>本地测试：</b><br>'
+                + '<code style="background:#f5f0e6;padding:2px 8px;border-radius:4px;">python server.py</code> → 打开 http://localhost:8765<br><br>'
+                + '<b>线上部署：</b><br>'
+                + '上传到 Vercel 即可，无需额外配置。'
+            );
+        });
+    }
+
+    // Build API URL — always same-origin, no CORS
+    // /api/proxy/<backend>/<path> → proxy → remote API
+    function apiUrl(backend, path) {
+        return '/api/proxy/' + backend + path;
+    }
+
+    let sourceImage    = null;
+    let sourceBlob     = null;
+    let resultDataURL  = null;
+
+    // ── Default prompts ─────────────────────────
+    const DEFAULT_PROMPTS = {
+        siliconflow:
+            'Studio Ghibli animation style, hand-drawn anime by Hayao Miyazaki, soft dreamy pastel colors, warm golden lighting, painterly brushstrokes, detailed landscape background, fluffy clouds, peaceful atmosphere, highly detailed, masterpiece',
+        dashscope:
+            '宫崎骏吉卜力动画风格，手绘日式动漫，柔和粉彩色调，温暖光线，油画质感笔触，细节丰富的风景背景，蓬松云朵，宁静氛围，大师之作',
+        zhipu:
+            '宫崎骏吉卜力动画风格，手绘日式动漫，柔和粉彩色调，温暖光线，油画质感笔触，细节丰富的风景背景，蓬松云朵，宁静氛围，大师之作',
+    };
+
+    // ── Backend configs ─────────────────────────
+    const BACKENDS = {
+        siliconflow: {
+            label: '硅基流动 SiliconFlow',
+            getHint: () =>
+                '获取 Key：<a href="https://cloud.siliconflow.cn/account/ak" target="_blank" rel="noopener">cloud.siliconflow.cn/account/ak</a> → 手机号注册（送免费额度）→ 新建 API Key → 粘贴到上方。国内直连，速度快。',
+            showPrompt: true,
+            generate: sfGenerate,
+        },
+        dashscope: {
+            label: '阿里云百炼 — 通义万相',
+            getHint: () =>
+                '获取 Key：<a href="https://bailian.console.aliyun.com/" target="_blank" rel="noopener">bailian.console.aliyun.com</a> → 开通通义万相 → 创建 API Key → 粘贴到上方。',
+            showPrompt: true,
+            generate: dsGenerate,
+        },
+        zhipu: {
+            label: '智谱 AI — CogView',
+            getHint: () =>
+                '获取 Key：<a href="https://open.bigmodel.cn/usercenter/apikeys" target="_blank" rel="noopener">open.bigmodel.cn</a> → 注册 → 创建 API Key → 粘贴到上方。',
+            showPrompt: true,
+            generate: zpGenerate,
+        },
+    };
+
+    // ── Init from localStorage ──────────────────
+    const DEFAULT_API_KEY = 'sk-ws-H.REEHYLM.dyrx.MEQCIFRmfL2aajKtf3ynA4vA_syR6S4AmZaeWQpvXubhXtiGAiA24kYvAeBKe4iqeatwtVu-XD7rLcn5h5u6eQTTFXPXDQ';
+    const DEFAULT_BACKEND = 'dashscope';
+
+    function loadSettings() {
+        const be = localStorage.getItem('ghibli_cn_backend') || DEFAULT_BACKEND;
+        const key = localStorage.getItem('ghibli_cn_apikey') || DEFAULT_API_KEY;
+        const prompt = localStorage.getItem('ghibli_cn_prompt') || '';
+        backendSelect.value = be in BACKENDS ? be : DEFAULT_BACKEND;
+        apiKeyInput.value = key;
+        applyBackend(backendSelect.value);
+        if (prompt) promptInput.value = prompt;
+    }
+
+    function saveSettings() {
+        localStorage.setItem('ghibli_cn_backend', backendSelect.value);
+        localStorage.setItem('ghibli_cn_apikey', apiKeyInput.value);
+        localStorage.setItem('ghibli_cn_prompt', promptInput.value);
+    }
+
+    function applyBackend(be) {
+        const cfg = BACKENDS[be];
+        if (!cfg) return;
+        apiHint.innerHTML = cfg.getHint();
+        promptRow.classList.toggle('visible', cfg.showPrompt);
+        promptInput.value = DEFAULT_PROMPTS[be] || '';
+    }
+
+    backendSelect.addEventListener('change', () => {
+        applyBackend(backendSelect.value);
+        saveSettings();
+    });
+    apiKeyInput.addEventListener('input', saveSettings);
+    promptInput.addEventListener('input', saveSettings);
+
+    toggleKeyBtn.addEventListener('click', () => {
+        const isPw = apiKeyInput.type === 'password';
+        apiKeyInput.type = isPw ? 'text' : 'password';
+        toggleKeyBtn.textContent = isPw ? '🙈 隐藏' : '👁 显示';
+    });
+
+    loadSettings();
+
+    // ── File handling ───────────────────────────
+    fileInput.addEventListener('change', e => {
+        const f = e.target.files[0];
+        if (f) loadFile(f);
+    });
+
+    uploadZone.addEventListener('dragover', e => {
+        e.preventDefault();
+        uploadZone.classList.add('drag-over');
+    });
+    uploadZone.addEventListener('dragleave', () => {
+        uploadZone.classList.remove('drag-over');
+    });
+    uploadZone.addEventListener('drop', e => {
+        e.preventDefault();
+        uploadZone.classList.remove('drag-over');
+        const f = e.dataTransfer.files[0];
+        if (f && f.type.startsWith('image/')) {
+            loadFile(f);
+        } else {
+            setStatus('bad', '请上传图片文件（JPG / PNG / WebP）');
+        }
+    });
+
+    function loadFile(file) {
+        if (!file.type.match(/image\/(jpeg|png|webp)/)) {
+            setStatus('bad', '不支持的格式！仅支持 JPG、PNG、WebP。');
+            return;
+        }
+        if (file.size > 10 * 1024 * 1024) {
+            setStatus('bad', '文件过大！请选择 10 MB 以内的图片。');
+            return;
+        }
+        sourceBlob = file;
+        const reader = new FileReader();
+        reader.onload = e => {
+            const img = new Image();
+            img.onload = () => {
+                sourceImage = img;
+                imgOrig.src = e.target.result;
+                imgOrig.style.display = 'block';
+                phOrig.style.display = 'none';
+                imgResult.style.display = 'none';
+                phResult.style.display = 'flex';
+                previewGrid.classList.add('visible');
+                uploadZone.classList.add('filled');
+                apiSetup.classList.add('visible');
+                btnGenerate.classList.add('visible');
+                btnGenerate.disabled = false;
+                btnDownload.classList.remove('visible');
+                clearStatus();
+                resultDataURL = null;
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    }
+
+    // ── Generate ────────────────────────────────
+    btnGenerate.addEventListener('click', async () => {
+        if (!sourceImage || !sourceBlob || btnGenerate.disabled) return;
+
+        const apiKey = apiKeyInput.value.trim();
+        if (!apiKey) {
+            setStatus('bad', '请先填写 API Key！（获取方式见页面底部说明）');
+            return;
+        }
+
+        const backend = backendSelect.value;
+        const cfg = BACKENDS[backend];
+        if (!cfg) { setStatus('bad', '未知平台'); return; }
+
+        const prompt = (promptInput.value.trim() || DEFAULT_PROMPTS[backend] || '');
+
+        btnGenerate.disabled = true;
+        setStatus('busy', '<span class="spinner"></span>正在调用 AI 模型生成… 这可能需要 15–40 秒，请耐心等待 ✨');
+
+        try {
+            resultDataURL = await cfg.generate(apiKey, sourceBlob, prompt);
+            imgResult.src = resultDataURL;
+            imgResult.style.display = 'block';
+            phResult.style.display = 'none';
+            btnDownload.classList.add('visible');
+            setStatus('ok', '✅ 生成完成！你的宫崎骏风格图片已就绪～');
+            saveSettings();
+        } catch (err) {
+            console.error('Generation error:', err);
+            let msg = err.message || '未知错误';
+            // Detect CORS / network errors
+            if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('CORS')) {
+                msg = '网络请求被浏览器阻止（CORS 跨域限制）。请尝试：\n'
+                    + '1. 切换为「硅基流动」后端试试\n'
+                    + '2. 安装浏览器 CORS 插件\n'
+                    + '3. 使用 Chrome 并添加 --disable-web-security 启动参数';
+            }
+            setStatus('bad', '❌ 生成失败：' + msg);
+        }
+
+        btnGenerate.disabled = false;
+    });
+
+    // ── Download ────────────────────────────────
+    btnDownload.addEventListener('click', () => {
+        if (!resultDataURL) return;
+        const a = document.createElement('a');
+        a.download = 'ghibli-style-' + Date.now() + '.png';
+        a.href = resultDataURL;
+        a.click();
+    });
+
+    // ── Status helpers ──────────────────────────
+    function setStatus(type, html) {
+        statusDiv.className = 'status visible ' + type;
+        statusDiv.innerHTML = html;
+    }
+    function clearStatus() {
+        statusDiv.className = 'status';
+        statusDiv.innerHTML = '';
+    }
+
+    // ═══════════════════════════════════════════════
+    //  BACKEND: 硅基流动 SiliconFlow
+    //  Uses Stable Diffusion img2img via SiliconFlow API
+    // ═══════════════════════════════════════════════
+    async function sfGenerate(apiKey, blob, prompt) {
+        // SiliconFlow image generation API
+        // Doc: https://docs.siliconflow.cn/api-reference/images/images-generations
+        const dataUrl = await blobToDataURL(blob);
+        const b64 = dataUrl.split(',')[1];
+
+        // Try SiliconFlow's Stable Diffusion image-to-image endpoint
+        const body = {
+            model: 'stabilityai/stable-diffusion-2-1',
+            prompt: prompt,
+            image: b64,              // reference image for img2img
+            strength: 0.65,           // how much to transform (0-1)
+            guidance_scale: 7.5,
+            num_inference_steps: 30,
+            negative_prompt: 'photorealistic, realistic, photograph, ugly, deformed, blurry, low quality, text, watermark',
+        };
+
+        let resp = await fetch(apiUrl('siliconflow', '/v1/images/generations'), {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + apiKey,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(body),
+        });
+
+        // If first attempt fails, try alternative model
+        if (!resp.ok) {
+            // Try with SDXL or other supported models
+            body.model = 'stabilityai/stable-diffusion-xl-base-1.0';
+            resp = await fetch(apiUrl('siliconflow', '/v1/images/generations'), {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer ' + apiKey,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(body),
+            });
+        }
+
+        return await handleImageResponse(resp, '硅基流动');
+    }
+
+    // ═══════════════════════════════════════════════
+    //  BACKEND: 阿里云百炼 — 通义万相
+    //  两步流水线：Qwen-VL 识图 → 通义万相文生图
+    //  API doc: https://help.aliyun.com/zh/model-studio/
+    // ═══════════════════════════════════════════════
+    async function dsGenerate(apiKey, blob, prompt) {
+        // ── Step 0: Quick key validation ──
+        setStatus('busy', '<span class="spinner"></span>正在验证 API Key…');
+        const keyOk = await validateApiKey(apiKey);
+        if (!keyOk) {
+            // Continue anyway — the key check endpoint might fail even if image endpoints work
+        }
+
+        // ── Step 1: Compress image ──
+        const dataUrl = await compressImage(blob, 1024, 0.8);
+        const b64 = dataUrl.split(',')[1];
+
+        // ── Step 2: Qwen-VL describes the image ──
+        setStatus('busy', '<span class="spinner"></span>Step 1/2：通义千问正在分析图片内容…');
+        let imageDescription;
+        try {
+            imageDescription = await qwenVLDescribe(apiKey, b64);
+        } catch (e) {
+            console.warn('Qwen-VL failed:', e.message);
+            imageDescription = 'a beautiful scene with natural lighting and harmonious composition';
+        }
+
+        // ── Step 3: 通义万相 text-to-image ──
+        setStatus('busy', '<span class="spinner"></span>Step 2/2：通义万相正在绘制宫崎骏风格图片…');
+
+        const fullPrompt = prompt + '\n\nImage content to preserve: ' + imageDescription;
+        const negativePrompt = 'photorealistic, realistic, 3D, photograph, ugly, deformed, blurry, low quality, text, watermark, signature';
+
+        // Try models
+        const models = ['wanx2.0-t2i-turbo', 'wanx-v1'];
+        let resultUrl = null;
+        let lastError = '';
+
+        for (const model of models) {
+            try {
+                resultUrl = await wanxText2Image(apiKey, model, fullPrompt, negativePrompt);
+                if (resultUrl) break;
+            } catch (e) {
+                lastError = e.message;
+                console.warn('Model ' + model + ' failed:', e.message);
+                // CORS errors are fatal — don't retry
+                if (e.message.includes('CORS') || e.message.includes('fetch')) throw e;
+            }
+        }
+
+        if (!resultUrl) {
+            throw new Error(lastError || '所有模型均调用失败，请检查 API Key 权限或网络连接');
+        }
+
+        // ── Step 4: Download result ──
+        const imgResp = await fetch(resultUrl);
+        if (!imgResp.ok) throw new Error('下载生成的图片失败 (HTTP ' + imgResp.status + ')');
+        return blobToDataURL(await imgResp.blob());
+    }
+
+    // ── Validate API key with a lightweight call ──
+    async function validateApiKey(apiKey) {
+        try {
+            const resp = await fetch(
+                apiUrl('dashscope', '/compatible-mode/v1/models'),
+                { headers: { 'Authorization': 'Bearer ' + apiKey } }
+            );
+            if (resp.ok) return true;
+            console.warn('Key validation returned HTTP', resp.status);
+            return false;
+        } catch (e) {
+            console.warn('Key validation network error:', e.message);
+            return false; // likely CORS, but image endpoints might still work
+        }
+    }
+
+    // ── Qwen-VL: describe image content ─────────
+    async function qwenVLDescribe(apiKey, b64) {
+        let resp;
+        try {
+            resp = await fetch(
+                apiUrl('dashscope', '/compatible-mode/v1/chat/completions'),
+                {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer ' + apiKey,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        model: 'qwen-vl-plus',
+                        messages: [{
+                            role: 'user',
+                            content: [
+                                {
+                                    type: 'image_url',
+                                    image_url: { url: 'data:image/jpeg;base64,' + b64 },
+                                },
+                                {
+                                    type: 'text',
+                                    text: 'Describe this image in one paragraph (under 150 words). Include scene type, main subjects, colors, lighting, composition, atmosphere. Write in English.',
+                                },
+                            ],
+                        }],
+                        max_tokens: 300,
+                        temperature: 0.3,
+                    }),
+                }
+            );
+        } catch (e) {
+            throw new Error('网络请求失败（可能是 CORS 跨域被浏览器拦截）: ' + e.message);
+        }
+
+        if (!resp.ok) {
+            const errText = await resp.text().catch(() => '');
+            throw new Error('Qwen-VL HTTP ' + resp.status + ': ' + (errText || '').slice(0, 200));
+        }
+
+        const data = await resp.json();
+        const content = data.choices?.[0]?.message?.content || '';
+
+        if (!content || content.length < 10) {
+            throw new Error('Qwen-VL 返回内容过短: ' + JSON.stringify(data).slice(0, 200));
+        }
+
+        return typeof content === 'string' ? content : JSON.stringify(content);
+    }
+
+    // ── 通义万相: text-to-image ──────────────────
+    async function wanxText2Image(apiKey, model, prompt, negativePrompt) {
+        const body = {
+            model: model,
+            input: { prompt, negative_prompt: negativePrompt },
+            parameters: { size: '1024*1024', n: 1 },
+        };
+
+        let resp;
+        try {
+            resp = await fetch(
+                apiUrl('dashscope', '/api/v1/services/aigc/text2image/image-synthesis'),
+                {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer ' + apiKey,
+                        'Content-Type': 'application/json',
+                        'X-DashScope-Async': 'enable',
+                    },
+                    body: JSON.stringify(body),
+                }
+            );
+        } catch (e) {
+            throw new Error('网络请求失败（CORS 跨域被浏览器拦截）。请尝试：\n'
+                + '1. 切换后端为「硅基流动」\n'
+                + '2. 或安装浏览器 CORS 插件\n'
+                + '3. 或使用 Chrome 的 --disable-web-security 模式\n'
+                + '原始错误: ' + e.message);
+        }
+
+        if (!resp.ok) {
+            const errText = await resp.text().catch(() => '');
+            let errMsg = errText;
+            try {
+                const j = JSON.parse(errText);
+                errMsg = (j.error?.message) || j.message || j.code || errText;
+            } catch (_) {}
+
+            if (resp.status === 401) throw new Error('API Key 验证失败 (401)。可能原因：Key 已过期、被删除、或权限不足。请到百炼控制台检查。');
+            if (resp.status === 403) throw new Error('无权限 (403)。请在百炼控制台开通「通义万相」服务。');
+            if (resp.status === 404) throw new Error('模型不存在 (404)。模型名: ' + model + '，请确认该模型在百炼平台可用。');
+            if (resp.status === 429) throw new Error('请求太频繁 (429)，请稍等几秒再试。');
+            if (resp.status === 400) throw new Error('请求参数错误 (400): ' + (errMsg || errText).slice(0, 300));
+            throw new Error('通义万相 HTTP ' + resp.status + ': ' + (errMsg || errText).slice(0, 300));
+        }
+
+        const data = await resp.json();
+
+        // Async task
+        if (data.output?.task_id) {
+            return await pollWanxTask(apiKey, data.output.task_id);
+        }
+
+        // Sync result
+        if (data.output?.results?.[0]?.url) {
+            return data.output.results[0].url;
+        }
+
+        if (data.data?.[0]?.url) {
+            return data.data[0].url;
+        }
+
+        throw new Error('通义万相返回格式异常: ' + JSON.stringify(data).slice(0, 300));
+    }
+
+    // ── Poll async task ──────────────────────────
+    async function pollWanxTask(apiKey, taskId) {
+        let attempts = 0;
+        while (attempts < 50) {
+            await delay(2000);
+
+            let pollResp;
+            try {
+                pollResp = await fetch(
+                    apiUrl('dashscope', '/api/v1/tasks/' + taskId),
+                    { headers: { 'Authorization': 'Bearer ' + apiKey } }
+                );
+            } catch (e) {
+                attempts++;
+                if (attempts >= 3) throw new Error('轮询网络失败: ' + e.message);
+                continue;
+            }
+
+            if (!pollResp.ok) { attempts++; continue; }
+
+            const data = await pollResp.json();
+            const status = data.output?.task_status;
+
+            if (status === 'SUCCEEDED') {
+                const url = data.output?.results?.[0]?.url;
+                if (url) return url;
+                throw new Error('任务完成但无图片URL');
+            }
+            if (status === 'FAILED') {
+                throw new Error('通义万相生成失败: ' + (data.output?.message || data.message || ''));
+            }
+            attempts++;
+        }
+        throw new Error('生成超时（100秒），请重试');
+    }
+
+    // ── Compress image for API ───────────────────
+    async function compressImage(blob, maxDim, quality) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => {
+                let w = img.naturalWidth, h = img.naturalHeight;
+                if (Math.max(w, h) > maxDim) {
+                    const r = maxDim / Math.max(w, h);
+                    w = Math.round(w * r); h = Math.round(h * r);
+                }
+                const c = document.createElement('canvas');
+                c.width = w; c.height = h;
+                c.getContext('2d').drawImage(img, 0, 0, w, h);
+                resolve(c.toDataURL('image/jpeg', quality));
+            };
+            img.onerror = () => {
+                const r = new FileReader();
+                r.onload = () => resolve(r.result);
+                r.onerror = reject;
+                r.readAsDataURL(blob);
+            };
+            img.src = URL.createObjectURL(blob);
+        });
+    }
+
+    // ═══════════════════════════════════════════════
+    //  BACKEND: 智谱 AI — CogView
+    //  Uses CogView for image generation with prompt
+    // ═══════════════════════════════════════════════
+    async function zpGenerate(apiKey, blob, prompt) {
+        const dataUrl = await blobToDataURL(blob);
+        const b64 = dataUrl.split(',')[1];
+
+        // 智谱 CogView 图像生成 API
+        // For img2img style transfer, we send the reference image with prompt
+        // Doc: https://open.bigmodel.cn/dev/api/normal-model/glm-4
+        const body = {
+            model: 'cogview-3-plus',
+            messages: [
+                {
+                    role: 'user',
+                    content: [
+                        {
+                            type: 'image_url',
+                            image_url: { url: 'data:image/png;base64,' + b64 },
+                        },
+                        {
+                            type: 'text',
+                            text: '请将这张图片转换为' + prompt + '，保持原图的构图和内容，但用动画风格重新绘制。',
+                        },
+                    ],
+                },
+            ],
+        };
+
+        const resp = await fetch(apiUrl('zhipu', '/api/paas/v4/chat/completions'), {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + apiKey,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(body),
+        });
+
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            throw new Error(
+                resp.status === 401 ? 'API Key 无效，请检查' :
+                resp.status === 429 ? '请求太频繁，请稍后再试' :
+                '智谱 AI 请求失败 (' + resp.status + '): ' + ((err.error && err.error.message) || '')
+            );
+        }
+
+        const data = await resp.json();
+
+        // Parse CogView response — look for generated image URL
+        if (data.choices && data.choices[0] && data.choices[0].message) {
+            const msg = data.choices[0].message;
+            // CogView may return image_url in content
+            if (Array.isArray(msg.content)) {
+                for (const part of msg.content) {
+                    if (part.type === 'image_url' && part.image_url && part.image_url.url) {
+                        return part.image_url.url; // already a data URL or HTTP URL
+                    }
+                }
+            }
+            // Text fallback — try extracting URL
+            const text = msg.content || '';
+            const urlMatch = text.match(/https?:\/\/[^\s"']+\.(png|jpg|jpeg|webp)/i);
+            if (urlMatch) {
+                const imgResp = await fetch(urlMatch[0]);
+                if (imgResp.ok) return blobToDataURL(await imgResp.blob());
+            }
+        }
+
+        throw new Error('智谱 AI 返回格式异常，请查看控制台');
+    }
+
+    // ── Shared response handler ──────────────────
+    async function handleImageResponse(resp, providerName) {
+        if (!resp.ok) {
+            const errText = await resp.text().catch(() => '');
+            let msg = errText;
+            try { const j = JSON.parse(errText); msg = j.message || j.error || j.detail || errText; } catch(_) {}
+            if (resp.status === 401 || resp.status === 403) throw new Error('API Key 无效，请检查');
+            if (resp.status === 429) throw new Error('请求太频繁，请稍后再试');
+            if (resp.status === 402) throw new Error('免费额度已用完');
+            throw new Error(providerName + ' 请求失败 (' + resp.status + '): ' + (msg || '未知错误'));
+        }
+
+        const contentType = resp.headers.get('content-type') || '';
+
+        // Direct image response
+        if (contentType.startsWith('image/')) {
+            const blob = await resp.blob();
+            return blobToDataURL(blob);
+        }
+
+        // JSON response — parse for image URL or base64
+        const data = await resp.json();
+
+        // SiliconFlow-style: { images: [{ url: "..." }] } or { data: [{ url: "..." }] }
+        if (data.images && data.images[0]) {
+            const img = data.images[0];
+            if (img.url) {
+                const imgResp = await fetch(img.url);
+                if (!imgResp.ok) throw new Error('下载生成图片失败');
+                return blobToDataURL(await imgResp.blob());
+            }
+            if (img.b64_json || img.b64) {
+                return 'data:image/png;base64,' + (img.b64_json || img.b64);
+            }
+        }
+
+        // OpenAI-style: { data: [{ url: "..." }] }
+        if (data.data && data.data[0]) {
+            const d = data.data[0];
+            if (d.url) {
+                const imgResp = await fetch(d.url);
+                if (!imgResp.ok) throw new Error('下载生成图片失败');
+                return blobToDataURL(await imgResp.blob());
+            }
+            if (d.b64_json || d.b64) {
+                return 'data:image/png;base64,' + (d.b64_json || d.b64);
+            }
+        }
+
+        throw new Error(providerName + ' 返回了未知格式，请查看控制台：' + JSON.stringify(data).slice(0, 200));
+    }
+
+    // ── Utilities ────────────────────────────────
+    function blobToDataURL(blob) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    }
+
+    function delay(ms) {
+        return new Promise(r => setTimeout(r, ms));
+    }
+})();
+</script>
+
+</body>
+</html>

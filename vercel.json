@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/proxy/[...route].js": {
+      "maxDuration": 60
+    }
+  }
+}
